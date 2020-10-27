@@ -92,7 +92,7 @@ class SKU(BaseModel):
     comments = models.IntegerField(default=0, verbose_name='评价数')
     is_launched = models.BooleanField(default=True, verbose_name='是否上架销售')
     default_image_url = models.ImageField(verbose_name='默认图片',default=None, upload_to='sku')
-    version = models.IntegerField(default=0,verbose_name="库存版本")
+    version = models.IntegerField(default=0,verbose_name="库存版本")  #修改表的数据，加1
     sale_attr_value = models.ManyToManyField(SaleAttrValue)
     class Meta:
         verbose_name = 'SKU表'

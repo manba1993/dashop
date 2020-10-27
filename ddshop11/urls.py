@@ -26,7 +26,8 @@ urlpatterns = [
     path('v1/users',include('user.urls')),
     path('v1/tokens',include('dtoken.urls')),
     path('v1/goods',include('goods.urls')),
-    path('v1/carts',include('carts.urls'))
+    path('v1/carts',include('carts.urls')),
+    path('v1/orders',include('order.urls'))
 ]
 #设置static方法，绑定MEDIA_URL和MEDIA_ROOT,实现了127.0.0.1:8000/media/a.jpg请求到达djaogo后,django 去MEDIA_ROOT下寻找相应资源问价；当前方法只在debug=True生效
 #static会解析document_root里的文件

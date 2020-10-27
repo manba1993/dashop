@@ -38,15 +38,16 @@ class CartView(View):
 
     def get_cache_key(self,uid):
         #负责返回当前业务redis的key
-        return 'carts_%s'%(uid)
+        return 'carts_%s'%(uid) #carts_uid
 
     def get_carts_all_data(self,uid):
         #拿出用户所有的购物车数据
-        #key  -> carts_%s(uid)
+        #carts_1 -{'sku_id':[count,slelct]
         #方案1：value  - >{skuid:{'count':1,'selected':1}}
         #方案2：value  - >{skuid:[count,selected]}
         key =self.get_cache_key(uid)  #缓存的key【carts_uid】
         value =CARTS_CACHE.get(key)    #CARTS_CACHE =caches['carts']
+        print("key is %s,value is %s"%(key,value))  #key is carts_9,value is None
         if not value:
             return {}  #返回一个字典
         data ={int(k):v for k,v in value.items()}
@@ -58,16 +59,45 @@ class CartView(View):
         all_data[sku_id] =data  #如果为空，加data进去
         CARTS_CACHE.set(key,all_data)   #存储
 
+    def get_carts_lists(self,user_id):
+        carts_data = self.get_carts_all_data(user_id)  # 获取用户的整体情况 #{1: [3, 2], 2: [1, 1]}
+
+        if not carts_data:
+            # 如果是空字典，返回空字典
+            return []
+        # 进行orm查询，把购物车对应的数据取出来,id 做__in查询
+        skus = SKU.objects.filter(id__in=carts_data.keys())  # queryset
+        skus_list = []  # 循环
+        for sku in skus:
+            sku_dict = {}
+            sku_dict['id'] = sku.id
+            sku_dict['name'] = sku.name
+            sku_dict['price'] = str(sku.price)
+            sku_dict['default_image_url'] = str(sku.default_image_url)
+            sku_dict['count'] = int(carts_data[sku.id][0])
+            sku_dict['selected'] = int(carts_data[sku.id][1])
+            # 拿到当前sku销售的属性值和销售属性值对应的属性名
+            # sku_sale_attr_name =['尺寸','颜色']
+            # sku_sale_attr_val =['18寸','蓝色']
+            sku_sale_attr_name, sku_sale_attr_val = self.get_sku_attr_name_and_values(sku)
+            sku_dict['sku_sale_attr_name'] = sku_sale_attr_name
+            sku_dict['sku_sale_attr_val'] = sku_sale_attr_val
+            skus_list.append(sku_dict)
+
+        return skus_list
+
     def post(self,request,username):
         #添加购物车
         #{“ sku_id”:xxxx, 'count':1}
-        #取值sku_id,count
+        #取值sku_id,count  #json_str =request.body
         sku_id =request.json_obj['sku_id']
         count =request.json_obj['count']
         user =request.myuser
         #取sku ，查sku_id 是否存在
         try:
             sku =SKU.objects.get(id = sku_id,is_launched=True)
+            print("=="*50)
+            print(sku)  #1: 安踏A蓝色小尺寸
         except Exception as e:
             print('sku get error %s'%(e))
             return JsonResponse({'code':'10400','error':'no sku'})
@@ -75,7 +105,6 @@ class CartView(View):
         #预判断库存是否充裕
         if count>sku.stock:   #添加的大于库存
             return JsonResponse({'code':10401,'error':'stock error'})
-
         #取用户购物车数据
         carts =self.get_carts_all_data(user.id)  #查看当前用户在redis有无数据
         if not carts:
@@ -102,35 +131,20 @@ class CartView(View):
             return JsonResponse({'code':200,'data':{'carts_count':len(carts_data)},'base_url':settings.PIC_URL}) #len(carts_data)：购物车有几种数据
 
     def get(self,request,username):
-        #取购物车
+        #取出购物车
         user =request.myuser
-        carts_data =self.get_carts_all_data(user.id)
-
-        if  not carts_data:
-            return JsonResponse({'code':200,'data':[],'base_url':settings.PIC_URL})
-        #进行orm查询，把购物车对应的数据取出来
-        skus =SKU.objects.filter(id_in =carts_data.keys())#queryset
-        skus_list =[]  #循环
-        for sku in skus:
-            sku_dict ={}
-            sku_dict['id'] =sku.id
-            sku_dict['name'] =sku.name
-            sku_dict['price']=str(sku.price)
-            sku_dict['default_image_url'] =str(sku.default_image_url)
-            sku_dict['count'] =int(carts_data[sku.id][0])
-            sku_dict['selected'] =int(carts_data[sku.id][1])
-            #拿到当前sku销售的属性值和销售属性值对应的属性名
-            #sku_sale_attr_name =['尺寸','颜色']
-            #sku_sale_attr_val =['18寸','蓝色']
-            sku_sale_attr_name,sku_sale_attr_val =self.get_sku_attr_name_and_values(sku)
-            sku_dict['sku_sale_attr_name'] =sku_sale_attr_name
-            sku_dict['sku_sale_attr_val'] =sku_sale_attr_val
-            skus_list.append(sku_dict)
+        skus_list =self.get_carts_lists(user.id)
         return JsonResponse({'code':200,'data':skus_list,'base_url':settings.PIC_URL})
+
+    # def delete(self,request,username):
+    #     sku_id = request.json_obj['sku_id']
+    #     count = request.json_obj['count']
+
+
 
     def merge_carts(self,user_id,carts_info):
         #返回值  - > 购物车sku 种类的数量  -> 同步购物车小红点
-        carts_data =self.get_carts_all_data(user_id)  #有没有购物车数据
+        carts_data =self.get_carts_lists(user_id)  #有没有购物车数据
         if not carts_info:
              # 前段购物车没数据
             return len(carts_data)

@@ -2,7 +2,7 @@ import hashlib
 import json
 from django.http import JsonResponse
 from django.shortcuts import render
-from django .conf import settings
+from django.conf import settings
 import  jwt
 import time
 # Create your views here.
@@ -41,5 +41,5 @@ def tokens(request):
 def make_token(username,expire =3600*24):
     key =settings.SHOP_TOKEN_KEY
     now =time.time()  #当前的时间戳
-    payload ={'username':username,'exp':now+expire}
+    payload ={'username':username,'exp':now+expire} #要传递的数据
     return jwt.encode(payload,key,algorithm='HS256') #JWT生成的token 是字节串格式
